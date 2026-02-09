@@ -1,113 +1,47 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
+const fs = require("fs");
+const db = require("./db");
 
 const app = express();
-const PORT = 3000;
-
-// ===============================
-// Middleware
-// ===============================
-app.use(express.json());
 app.use(cors());
+app.use(express.json());
 
-// ===============================
-// Health check
-// ===============================
-app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
-    message: "DishQuest backend está vivo",
-  });
-});
+// Rutas del Bloque A
+app.use("/restaurants", require("./routes/restaurants"));
+app.use("/dishes", require("./routes/dishes"));
+app.use("/promotions", require("./routes/promotions"));
 
-// ===============================
-// Datos mock (temporal, controlado)
-// ===============================
-const dishes = [
-  {
-    id: "d1",
-    name: "Lasaña Vegana",
-    description: "Lasaña 100% vegetal con vegetales frescos y salsa de tomate.",
-    price: 32000,
-    ingredients: JSON.stringify(["Pasta", "Tomate", "Verduras", "Tofu"]),
-    restaurantName: "Green House",
-    restaurantAddress: "Calle 123 #45-67",
-    photo:
-      "https://images.unsplash.com/photo-1604908177522-fd8e1f52a0a9?auto=format&w=1200&q=80",
-  },
-  {
-    id: "d2",
-    name: "Hamburguesa Veggie BBQ",
-    description: "Hamburguesa vegetal con salsa BBQ y pan artesanal.",
-    price: 28000,
-    ingredients: JSON.stringify(["Pan", "Proteína vegetal", "BBQ", "Lechuga"]),
-    restaurantName: "Veggie Street",
-    restaurantAddress: "Carrera 45 #10-22",
-    photo:
-      "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&w=1200&q=80",
-  },
-  {
-    id: "d3",
-    name: "Cerveza Roja Artesanal 500ml",
-    description: "Cerveza artesanal roja, cuerpo medio y sabor intenso.",
-    price: 14000,
-    ingredients: JSON.stringify(["Agua", "Malta", "Lúpulo", "Levadura"]),
-    restaurantName: "Beer Lab",
-    restaurantAddress: "Av. Central #89-10",
-    photo:
-      "https://images.unsplash.com/photo-156455590571-18256e5bb9ff?auto=format&w=1200&q=80",
-  },
-];
+// ✅ Diagnóstico: muestra exactamente qué DB está usando el backend
+app.get("/__debug/db", (req, res) => {
+  const dbPath = path.join(__dirname, "database.sqlite");
+  const exists = fs.existsSync(dbPath);
 
-// ===============================
-// GET /dishes (lista)
-// ===============================
-app.get("/dishes", (req, res) => {
-  res.json({
-    total: dishes.length,
-    data: dishes,
-  });
-});
+  db.get("SELECT COUNT(*) as c FROM restaurants", (err, r1) => {
+    if (err) return res.status(500).json({ error: err.message });
 
-// ===============================
-// GET /dishes/search?query=...
-// ===============================
-app.get("/dishes/search", (req, res) => {
-  const query = (req.query.query || "").toLowerCase();
+    db.get("SELECT COUNT(*) as c FROM dishes", (err2, r2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
 
-  if (!query) {
-    return res.json({ total: 0, data: [] });
-  }
+      db.get("SELECT COUNT(*) as c FROM promotions", (err3, r3) => {
+        if (err3) return res.status(500).json({ error: err3.message });
 
-  const results = dishes.filter((d) => d.name.toLowerCase().includes(query));
-
-  res.json({
-    total: results.length,
-    data: results,
-  });
-});
-
-// ===============================
-// GET /dishes/:id (detalle)
-// ===============================
-app.get("/dishes/:id", (req, res) => {
-  const { id } = req.params;
-
-  const dish = dishes.find((d) => d.id === id);
-
-  if (!dish) {
-    return res.status(404).json({
-      error: "Dish not found",
+        res.json({
+          dbPath,
+          exists,
+          fileSizeBytes: exists ? fs.statSync(dbPath).size : 0,
+          counts: {
+            restaurants: r1.c,
+            dishes: r2.c,
+            promotions: r3.c,
+          },
+        });
+      });
     });
-  }
-
-  res.json(dish);
+  });
 });
 
-// ===============================
-// Arranque del servidor
-// ===============================
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Backend DishQuest corriendo en http://0.0.0.0:${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`DishQuest backend running on port ${PORT}`));
 
