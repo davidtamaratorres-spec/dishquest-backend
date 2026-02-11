@@ -18,7 +18,7 @@ function dbRun(sqliteSql, pgSql, params, cb) {
   db.run(sql, params, cb);
 }
 
-// GET /dishes
+// GET /dishes (lista)
 router.get("/", (req, res) => {
   const sqliteSql = `
     SELECT
@@ -55,6 +55,54 @@ router.get("/", (req, res) => {
   dbAll(sqliteSql, pgSql, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
+  });
+});
+
+// ✅ GET /dishes/:id (detalle)
+router.get("/:id", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: "id inválido" });
+  }
+
+  const sqliteSql = `
+    SELECT
+      d.id,
+      d.restaurante_id,
+      d.nombre,
+      d.descripcion,
+      d.precio,
+      d.categoria,
+      d.imagen_url,
+      d.disponible,
+      r.ciudad
+    FROM dishes d
+    LEFT JOIN restaurants r ON r.id = d.restaurante_id
+    WHERE d.id = ?
+    LIMIT 1
+  `;
+
+  const pgSql = `
+    SELECT
+      d.id,
+      d.restaurante_id,
+      d.nombre,
+      d.descripcion,
+      d.precio,
+      d.categoria,
+      d.imagen_url,
+      d.disponible,
+      r.ciudad
+    FROM dishes d
+    LEFT JOIN restaurants r ON r.id = d.restaurante_id
+    WHERE d.id = $1
+    LIMIT 1
+  `;
+
+  dbGet(sqliteSql, pgSql, [id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ error: "Plato no encontrado" });
+    res.json(row);
   });
 });
 
@@ -119,10 +167,7 @@ router.post("/", (req, res) => {
       function (err2, result) {
         if (err2) return res.status(500).json({ error: err2.message });
 
-        // SQLite: this.lastID
-        // Postgres wrapper: result.rows[0].id
         const newId = isPostgres ? result?.rows?.[0]?.id : this.lastID;
-
         res.status(201).json({ ok: true, id: newId ?? null });
       }
     );
