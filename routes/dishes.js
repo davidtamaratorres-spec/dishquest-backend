@@ -2,10 +2,25 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 
-// GET /dishes  (ya lo tienes, lo dejo robusto y compatible)
+const isPostgres = !!db._pool; // en tu wrapper pg exportas _pool
+
+// Helpers para ejecutar queries en ambos motores
+function dbGet(sqliteSql, pgSql, params, cb) {
+  const sql = isPostgres ? pgSql : sqliteSql;
+  db.get(sql, params, cb);
+}
+function dbAll(sqliteSql, pgSql, params, cb) {
+  const sql = isPostgres ? pgSql : sqliteSql;
+  db.all(sql, params, cb);
+}
+function dbRun(sqliteSql, pgSql, params, cb) {
+  const sql = isPostgres ? pgSql : sqliteSql;
+  db.run(sql, params, cb);
+}
+
+// GET /dishes
 router.get("/", (req, res) => {
-  // Nota: tus columnas están en español (dishes.nombre, restaurants.ciudad, etc.)
-  const sql = `
+  const sqliteSql = `
     SELECT
       d.id,
       d.restaurante_id,
@@ -21,13 +36,29 @@ router.get("/", (req, res) => {
     ORDER BY d.id DESC
   `;
 
-  db.all(sql, [], (err, rows) => {
+  const pgSql = `
+    SELECT
+      d.id,
+      d.restaurante_id,
+      d.nombre,
+      d.descripcion,
+      d.precio,
+      d.categoria,
+      d.imagen_url,
+      d.disponible,
+      r.ciudad
+    FROM dishes d
+    LEFT JOIN restaurants r ON r.id = d.restaurante_id
+    ORDER BY d.id DESC
+  `;
+
+  dbAll(sqliteSql, pgSql, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
   });
 });
 
-// POST /dishes  (nuevo)
+// POST /dishes
 router.post("/", (req, res) => {
   const {
     restaurante_id,
@@ -39,11 +70,9 @@ router.post("/", (req, res) => {
     disponible = 1,
   } = req.body || {};
 
-  // Validaciones mínimas
   if (!restaurante_id || !nombre || precio === undefined || precio === null) {
     return res.status(400).json({
-      error:
-        "Faltan campos requeridos: restaurante_id, nombre, precio",
+      error: "Faltan campos requeridos: restaurante_id, nombre, precio",
     });
   }
 
@@ -52,43 +81,52 @@ router.post("/", (req, res) => {
     return res.status(400).json({ error: "precio inválido" });
   }
 
-  // Verifica que el restaurante exista
-  db.get(
-    "SELECT id FROM restaurants WHERE id = ?",
-    [restaurante_id],
-    (err, r) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (!r) return res.status(404).json({ error: "Restaurante no existe" });
+  // 1) Verificar restaurante existe
+  const sqliteCheck = "SELECT id FROM restaurants WHERE id = ?";
+  const pgCheck = "SELECT id FROM restaurants WHERE id = $1";
 
-      const sql = `
-        INSERT INTO dishes
-          (restaurante_id, nombre, descripcion, precio, categoria, imagen_url, disponible)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `;
+  dbGet(sqliteCheck, pgCheck, [restaurante_id], (err, r) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!r) return res.status(404).json({ error: "Restaurante no existe" });
 
-      db.run(
-        sql,
-        [
-          restaurante_id,
-          nombre,
-          descripcion,
-          precioNum,
-          categoria,
-          imagen_url,
-          disponible ? 1 : 0,
-        ],
-        function (err2) {
-          if (err2) return res.status(500).json({ error: err2.message });
+    // 2) Insertar dish
+    const sqliteInsert = `
+      INSERT INTO dishes
+        (restaurante_id, nombre, descripcion, precio, categoria, imagen_url, disponible)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
 
-          // Respuesta con id creado
-          res.status(201).json({
-            id: this.lastID, // en Postgres wrapper no aplica; si es Postgres, igual devolvemos ok sin romper
-            ok: true,
-          });
-        }
-      );
-    }
-  );
+    // En Postgres devolvemos id con RETURNING
+    const pgInsert = `
+      INSERT INTO dishes
+        (restaurante_id, nombre, descripcion, precio, categoria, imagen_url, disponible)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id
+    `;
+
+    dbRun(
+      sqliteInsert,
+      pgInsert,
+      [
+        restaurante_id,
+        nombre,
+        descripcion,
+        precioNum,
+        categoria,
+        imagen_url,
+        disponible ? 1 : 0,
+      ],
+      function (err2, result) {
+        if (err2) return res.status(500).json({ error: err2.message });
+
+        // SQLite: this.lastID
+        // Postgres wrapper: result.rows[0].id
+        const newId = isPostgres ? result?.rows?.[0]?.id : this.lastID;
+
+        res.status(201).json({ ok: true, id: newId ?? null });
+      }
+    );
+  });
 });
 
 module.exports = router;
