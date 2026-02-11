@@ -4,15 +4,14 @@ const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
 const db = require("./db");
-const { runSeedIfNeeded } = require("./seed");
+ 
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // ✅ correr seed al arrancar (solo si BD está vacía)
-runSeedIfNeeded();
-
+ 
 // Rutas del Bloque A
 app.use("/restaurants", require("./routes/restaurants"));
 app.use("/dishes", require("./routes/dishes"));
