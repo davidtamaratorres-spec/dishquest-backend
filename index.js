@@ -5,10 +5,6 @@ const path = require("path");
 const fs = require("fs");
 
 const db = require("./db");
-
-// ✅ NUEVO: init del proyecto Colombia (tablas municipios/fiestas)
-// - NO afecta DishQuest porque solo corre si COLOMBIA_INIT=1
-// - y usa DATABASE_URL (Postgres)
 const initColombia = require("./colombiaInit");
 
 const app = express();
@@ -16,11 +12,11 @@ app.use(cors());
 app.use(express.json());
 
 // =========================
-// ✅ DishQuest routes
+// ✅ DishQuest routes (nombres reales de archivos)
 // =========================
-app.use("/restaurants", require("./rutas/restaurants"));
-app.use("/dishes", require("./rutas/dishes"));
-app.use("/promotions", require("./rutas/promotions"));
+app.use("/restaurants", require("./rutas/restaurantes"));
+app.use("/dishes", require("./rutas/platos"));
+app.use("/promotions", require("./rutas/promociones"));
 
 // =========================
 // ✅ Debug DB (DishQuest)
@@ -59,22 +55,20 @@ app.get("/__debug/db", (req, res) => {
 // ✅ Colombia init trigger (opcional)
 // =========================
 async function maybeInitColombia() {
-  // Solo corre si lo activas explícitamente
   if (process.env.COLOMBIA_INIT !== "1") {
     console.log("ℹ️ ColombiaInit: COLOMBIA_INIT != 1, no se ejecuta.");
     return;
   }
 
   try {
-    console.log("🚀 ColombiaInit: COLOMBIA_INIT=1, ejecutando init...");
+    console.log("🚀 ColombiaInit: ejecutando init...");
     await initColombia();
     console.log("✅ ColombiaInit: terminado.");
   } catch (e) {
-    console.error("❌ ColombiaInit: error:", e);
+    console.error("❌ ColombiaInit error:", e);
   }
 }
 
-// Ejecuta init Colombia si aplica (sin afectar DishQuest)
 maybeInitColombia();
 
 const PORT = process.env.PORT || 10000;
