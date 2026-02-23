@@ -5,6 +5,10 @@ const path = require("path");
 const fs = require("fs");
 
 const db = require("./db");
+
+// ✅ init del proyecto Colombia (tablas municipios/fiestas)
+// - NO afecta DishQuest porque solo corre si COLOMBIA_INIT=1
+// - y usa DATABASE_URL (Postgres)
 const initColombia = require("./colombiaInit");
 
 const app = express();
@@ -12,11 +16,11 @@ app.use(cors());
 app.use(express.json());
 
 // =========================
-// ✅ DishQuest routes (nombres reales de archivos)
+// ✅ DishQuest routes
 // =========================
-app.use("/restaurants", require("./rutas/restaurantes"));
-app.use("/dishes", require("./rutas/platos"));
-app.use("/promotions", require("./rutas/promociones"));
+app.use("/restaurants", require("./rutas/restaurantes")); // ✅ ESTA era la que fallaba
+app.use("/dishes", require("./rutas/dishes"));
+app.use("/promotions", require("./rutas/promotions"));
 
 // =========================
 // ✅ Debug DB (DishQuest)
@@ -61,11 +65,11 @@ async function maybeInitColombia() {
   }
 
   try {
-    console.log("🚀 ColombiaInit: ejecutando init...");
+    console.log("🚀 ColombiaInit: COLOMBIA_INIT=1, ejecutando init...");
     await initColombia();
     console.log("✅ ColombiaInit: terminado.");
   } catch (e) {
-    console.error("❌ ColombiaInit error:", e);
+    console.error("❌ ColombiaInit: error:", e);
   }
 }
 
