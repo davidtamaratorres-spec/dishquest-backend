@@ -1,4 +1,4 @@
-// index.js
+ // index.js
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
@@ -16,11 +16,38 @@ app.use(cors());
 app.use(express.json());
 
 // =========================
-// ✅ DishQuest routes
+// ✅ Helper: cargar rutas sin romper por nombres/carpeta
+// (sirve si el repo tiene /rutas/restaurantes.js o /routes/restaurants.js)
 // =========================
-app.use("/restaurants", require("./rutas/restaurantes")); // ✅ ESTA era la que fallaba
-app.use("/dishes", require("./rutas/dishes"));
-app.use("/promotions", require("./rutas/promotions"));
+function requireFirst(paths) {
+  let lastErr = null;
+  for (const p of paths) {
+    try {
+      return require(p);
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
+}
+
+// =========================
+// ✅ DishQuest routes (compatibles)
+// =========================
+app.use(
+  "/restaurants",
+  requireFirst(["./rutas/restaurantes", "./rutas/restaurants", "./routes/restaurants", "./routes/restaurantes"])
+);
+
+app.use(
+  "/dishes",
+  requireFirst(["./rutas/dishes", "./routes/dishes"])
+);
+
+app.use(
+  "/promotions",
+  requireFirst(["./rutas/promotions", "./rutas/promociones", "./routes/promotions", "./routes/promociones"])
+);
 
 // =========================
 // ✅ Debug DB (DishQuest)
