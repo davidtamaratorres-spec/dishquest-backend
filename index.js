@@ -1,10 +1,6 @@
 // index.js
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
-const fs = require("fs");
-
-const db = require("./db");
 
 // ✅ init del proyecto Colombia (tablas municipios/fiestas)
 // - NO afecta DishQuest porque solo corre si COLOMBIA_INIT=1
@@ -16,44 +12,11 @@ app.use(cors());
 app.use(express.json());
 
 // =========================
-// ✅ DishQuest routes
+// ✅ DishQuest routes (OJO: en este repo la carpeta es "routes")
 // =========================
-app.use("/restaurants", require("./rutas/restaurantes")); // ✅ ESTA era la que fallaba
-app.use("/dishes", require("./rutas/dishes"));
-app.use("/promotions", require("./rutas/promotions"));
-
-// =========================
-// ✅ Debug DB (DishQuest)
-// =========================
-app.get("/__debug/db", (req, res) => {
-  const dbPath = path.join(__dirname, "database.sqlite");
-  const exists = fs.existsSync(dbPath);
-
-  db.get("SELECT COUNT(*) as c FROM restaurants", (err, r1) => {
-    if (err) return res.status(500).json({ error: String(err) });
-
-    db.get("SELECT COUNT(*) as c FROM dishes", (err2, r2) => {
-      if (err2) return res.status(500).json({ error: String(err2) });
-
-      db.get("SELECT COUNT(*) as c FROM promotions", (err3, r3) => {
-        if (err3) return res.status(500).json({ error: String(err3) });
-
-        const fileSizeBytes = exists ? fs.statSync(dbPath).size : 0;
-
-        res.json({
-          dbPath,
-          exists,
-          fileSizeBytes,
-          counts: {
-            restaurants: r1?.c ?? 0,
-            dishes: r2?.c ?? 0,
-            promotions: r3?.c ?? 0,
-          },
-        });
-      });
-    });
-  });
-});
+app.use("/restaurants", require("./routes/restaurants"));
+app.use("/dishes", require("./routes/dishes"));
+app.use("/promotions", require("./routes/promotions"));
 
 // =========================
 // ✅ Colombia init trigger (opcional)
