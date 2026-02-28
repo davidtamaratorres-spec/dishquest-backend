@@ -1,10 +1,6 @@
- // index.js
+// index.js
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
-const fs = require("fs");
-
-const db = require("./db");
 
 // ✅ init del proyecto Colombia (tablas municipios/fiestas)
 // - NO afecta DishQuest porque solo corre si COLOMBIA_INIT=1
@@ -16,71 +12,11 @@ app.use(cors());
 app.use(express.json());
 
 // =========================
-// ✅ Helper: cargar rutas sin romper por nombres/carpeta
-// (sirve si el repo tiene /rutas/restaurantes.js o /routes/restaurants.js)
+// ✅ DishQuest routes (OJO: en este repo la carpeta es "routes")
 // =========================
-function requireFirst(paths) {
-  let lastErr = null;
-  for (const p of paths) {
-    try {
-      return require(p);
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-  throw lastErr;
-}
-
-// =========================
-// ✅ DishQuest routes (compatibles)
-// =========================
-app.use(
-  "/restaurants",
-  requireFirst(["./rutas/restaurantes", "./rutas/restaurants", "./routes/restaurants", "./routes/restaurantes"])
-);
-
-app.use(
-  "/dishes",
-  requireFirst(["./rutas/dishes", "./routes/dishes"])
-);
-
-app.use(
-  "/promotions",
-  requireFirst(["./rutas/promotions", "./rutas/promociones", "./routes/promotions", "./routes/promociones"])
-);
-
-// =========================
-// ✅ Debug DB (DishQuest)
-// =========================
-app.get("/__debug/db", (req, res) => {
-  const dbPath = path.join(__dirname, "database.sqlite");
-  const exists = fs.existsSync(dbPath);
-
-  db.get("SELECT COUNT(*) as c FROM restaurants", (err, r1) => {
-    if (err) return res.status(500).json({ error: String(err) });
-
-    db.get("SELECT COUNT(*) as c FROM dishes", (err2, r2) => {
-      if (err2) return res.status(500).json({ error: String(err2) });
-
-      db.get("SELECT COUNT(*) as c FROM promotions", (err3, r3) => {
-        if (err3) return res.status(500).json({ error: String(err3) });
-
-        const fileSizeBytes = exists ? fs.statSync(dbPath).size : 0;
-
-        res.json({
-          dbPath,
-          exists,
-          fileSizeBytes,
-          counts: {
-            restaurants: r1?.c ?? 0,
-            dishes: r2?.c ?? 0,
-            promotions: r3?.c ?? 0,
-          },
-        });
-      });
-    });
-  });
-});
+app.use("/restaurants", require("./routes/restaurants"));
+app.use("/dishes", require("./routes/dishes"));
+app.use("/promotions", require("./routes/promotions"));
 
 // =========================
 // ✅ Colombia init trigger (opcional)
