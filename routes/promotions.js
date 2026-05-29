@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 
+const isPostgres = !!process.env.DATABASE_URL;
+
 router.get("/", (req, res) => {
   const { restaurant_id } = req.query;
 
@@ -9,7 +11,8 @@ router.get("/", (req, res) => {
   const params = [];
 
   if (restaurant_id) {
-    query += " AND restaurante_id = ?";
+    const placeholder = isPostgres ? "$1" : "?";
+    query += ` AND restaurante_id = ${placeholder}`;
     params.push(restaurant_id);
   }
 

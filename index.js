@@ -14,6 +14,8 @@ app.use(express.json());
 // =========================
 // ✅ DishQuest routes (OJO: en este repo la carpeta es "routes")
 // =========================
+app.use("/auth", require("./routes/auth"));
+app.use("/partner", require("./routes/partner"));
 app.use("/restaurants", require("./routes/restaurants"));
 app.use("/dishes", require("./routes/dishes"));
 app.use("/promotions", require("./routes/promotions"));

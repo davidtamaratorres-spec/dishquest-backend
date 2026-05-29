@@ -24,18 +24,8 @@ if (DATABASE_URL) {
     try {
       // 1) Tablas (Postgres)
       await pool.query(`
-        CREATE TABLE IF NOT EXISTS partners (
-          id SERIAL PRIMARY KEY,
-          email TEXT NOT NULL UNIQUE,
-          password_hash TEXT NOT NULL,
-          created_at TIMESTAMP DEFAULT NOW()
-        );
-      `);
-
-      await pool.query(`
         CREATE TABLE IF NOT EXISTS restaurants (
           id SERIAL PRIMARY KEY,
-          partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL,
           nombre TEXT NOT NULL,
           ciudad TEXT NOT NULL,
           direccion TEXT,
@@ -65,14 +55,6 @@ if (DATABASE_URL) {
           tipo TEXT NOT NULL,
           descripcion TEXT,
           activo INTEGER DEFAULT 1
-        );
-      `);
-
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS unsatisfied_searches (
-          id SERIAL PRIMARY KEY,
-          query TEXT NOT NULL,
-          fecha TIMESTAMP DEFAULT NOW()
         );
       `);
 
@@ -232,18 +214,8 @@ async function sqliteMigrateAndSeed() {
 
     // Tablas locales
     await run(`
-      CREATE TABLE IF NOT EXISTS partners (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await run(`
       CREATE TABLE IF NOT EXISTS restaurants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL,
         nombre TEXT NOT NULL,
         ciudad TEXT NOT NULL,
         direccion TEXT,
@@ -252,9 +224,6 @@ async function sqliteMigrateAndSeed() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
-
-    // Migración: añade partner_id si la tabla ya existía sin esa columna
-    await run(`ALTER TABLE restaurants ADD COLUMN partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL`).catch(() => {});
 
     await run(`
       CREATE TABLE IF NOT EXISTS dishes (
@@ -278,14 +247,6 @@ async function sqliteMigrateAndSeed() {
         descripcion TEXT,
         activo INTEGER DEFAULT 1,
         FOREIGN KEY (restaurante_id) REFERENCES restaurants(id) ON DELETE CASCADE
-      )
-    `);
-
-    await run(`
-      CREATE TABLE IF NOT EXISTS unsatisfied_searches (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        query TEXT NOT NULL,
-        fecha DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 

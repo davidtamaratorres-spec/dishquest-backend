@@ -58,6 +58,44 @@ router.get("/", (req, res) => {
   });
 });
 
+// GET /dishes/search?q=
+router.get("/search", (req, res) => {
+  const q = (req.query.q || "").trim();
+  if (!q) return res.json([]);
+
+  const sqliteSql = `
+    SELECT
+      d.id, d.nombre, d.descripcion, d.precio, d.categoria, d.imagen_url, d.disponible,
+      r.nombre AS restaurante_nombre, r.ciudad
+    FROM dishes d
+    LEFT JOIN restaurants r ON r.id = d.restaurante_id
+    WHERE LOWER(d.nombre) LIKE LOWER(?)
+    ORDER BY d.id DESC
+  `;
+  const pgSql = `
+    SELECT
+      d.id, d.nombre, d.descripcion, d.precio, d.categoria, d.imagen_url, d.disponible,
+      r.nombre AS restaurante_nombre, r.ciudad
+    FROM dishes d
+    LEFT JOIN restaurants r ON r.id = d.restaurante_id
+    WHERE d.nombre ILIKE $1
+    ORDER BY d.id DESC
+  `;
+
+  dbAll(sqliteSql, pgSql, [`%${q}%`], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+
+    if (!rows || rows.length === 0) {
+      const sqliteLog = "INSERT INTO unsatisfied_searches (query) VALUES (?)";
+      const pgLog = "INSERT INTO unsatisfied_searches (query) VALUES ($1)";
+      dbRun(sqliteLog, pgLog, [q], () => {});
+      return res.json([]);
+    }
+
+    res.json(rows);
+  });
+});
+
 // ✅ GET /dishes/:id (detalle)
 router.get("/:id", (req, res) => {
   const id = Number(req.params.id);
