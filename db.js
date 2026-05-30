@@ -80,6 +80,17 @@ if (DATABASE_URL) {
         );
       `);
 
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS eventos (
+          id SERIAL PRIMARY KEY,
+          plato_id INTEGER,
+          restaurante_id INTEGER,
+          tipo_evento TEXT NOT NULL,
+          ciudad_usuario TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+
       // Migración: nuevos campos en dishes
       for (const col of [
         "ALTER TABLE dishes ADD COLUMN IF NOT EXISTS tiene_descuento INTEGER DEFAULT 0",
@@ -338,6 +349,17 @@ async function sqliteMigrateAndSeed() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         query TEXT NOT NULL,
         fecha DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS eventos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plato_id INTEGER,
+        restaurante_id INTEGER,
+        tipo_evento TEXT NOT NULL,
+        ciudad_usuario TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 

@@ -16,6 +16,7 @@ app.use(express.json());
 // =========================
 app.use("/auth", require("./routes/auth"));
 app.use("/partner", require("./routes/partner"));
+app.use("/eventos", require("./routes/eventos"));
 app.use("/restaurants", require("./routes/restaurants"));
 app.use("/dishes", require("./routes/dishes"));
 app.use("/promotions", require("./routes/promotions"));
