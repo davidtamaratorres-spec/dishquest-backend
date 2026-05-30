@@ -195,7 +195,13 @@ if (DATABASE_URL) {
 // =========================
 // SQLITE (Local / Dev)
 // =========================
-const sqlite3 = require("sqlite3").verbose();
+let sqlite3;
+try {
+  sqlite3 = require("sqlite3").verbose();
+} catch (e) {
+  console.error("❌ sqlite3 no disponible (entorno sin compilación nativa):", e.message);
+  process.exit(1);
+}
 
 const sqlitePath = path.join(__dirname, "database.sqlite");
 
