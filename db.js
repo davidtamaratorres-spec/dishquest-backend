@@ -78,8 +78,15 @@ if (DATABASE_URL) {
 
       // Migración: añade partner_id si restaurants ya existía sin esa columna
       await pool.query(`
-        ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL;
-      `).catch(() => {});
+        DO $$ BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'restaurants' AND column_name = 'partner_id'
+          ) THEN
+            ALTER TABLE restaurants ADD COLUMN partner_id INTEGER;
+          END IF;
+        END $$;
+      `);
 
       // 2) ¿Vacío?
       const r = await pool.query(`SELECT COUNT(*)::int AS c FROM restaurants;`);
