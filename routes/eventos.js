@@ -17,13 +17,14 @@ router.post("/", (req, res) => {
     return res.status(400).json({ error: `tipo_evento inválido. Valores: ${tipos.join(", ")}` });
   }
 
-  const sqliteSql = `INSERT INTO eventos (plato_id, restaurante_id, tipo_evento, ciudad_usuario) VALUES (?, ?, ?, ?)`;
-  const pgSql = `INSERT INTO eventos (plato_id, restaurante_id, tipo_evento, ciudad_usuario) VALUES ($1, $2, $3, $4)`;
+  const timestamp = new Date().toISOString();
+  const sqliteSql = `INSERT INTO eventos (plato_id, restaurante_id, tipo_evento, ciudad_usuario, timestamp) VALUES (?, ?, ?, ?, ?)`;
+  const pgSql = `INSERT INTO eventos (plato_id, restaurante_id, tipo_evento, ciudad_usuario, timestamp) VALUES ($1, $2, $3, $4, $5)`;
 
   const sql = isPostgres ? pgSql : sqliteSql;
-  db.run(sql, [plato_id || null, restaurante_id || null, tipo_evento, ciudad_usuario || null], function (err) {
+  db.run(sql, [plato_id || null, restaurante_id || null, tipo_evento, ciudad_usuario || null, timestamp], function (err) {
     if (err) return res.status(500).json({ error: err.message });
-    res.json({ ok: true });
+    res.json({ ok: true, timestamp });
   });
 });
 

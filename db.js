@@ -87,6 +87,7 @@ if (DATABASE_URL) {
           restaurante_id INTEGER,
           tipo_evento TEXT NOT NULL,
           ciudad_usuario TEXT,
+          timestamp TIMESTAMP DEFAULT NOW(),
           created_at TIMESTAMP DEFAULT NOW()
         );
       `);
@@ -104,6 +105,10 @@ if (DATABASE_URL) {
       // Migración: latitud/longitud en restaurants
       await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS latitud REAL;`).catch(() => {});
       await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS longitud REAL;`).catch(() => {});
+
+      // Migración: timestamp explícito en eventos
+      await pool.query(`ALTER TABLE eventos ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP;`).catch(() => {});
+      await pool.query(`UPDATE eventos SET timestamp = created_at WHERE timestamp IS NULL;`).catch(() => {});
 
       // Migración: añade partner_id si restaurants ya existía sin esa columna
       await pool.query(`
@@ -359,9 +364,13 @@ async function sqliteMigrateAndSeed() {
         restaurante_id INTEGER,
         tipo_evento TEXT NOT NULL,
         ciudad_usuario TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    await run(`ALTER TABLE eventos ADD COLUMN timestamp DATETIME`).catch(() => {});
+    await run(`UPDATE eventos SET timestamp = created_at WHERE timestamp IS NULL`).catch(() => {});
 
     const r = await get("SELECT COUNT(*) AS c FROM restaurants;");
     const count = Number(r?.c || 0);
