@@ -20,39 +20,18 @@ function dbRun(sqliteSql, pgSql, params, cb) {
 
 // GET /dishes (lista)
 router.get("/", (req, res) => {
-  const sqliteSql = `
+  const sql = `
     SELECT
-      d.id,
-      d.restaurante_id,
-      d.nombre,
-      d.descripcion,
-      d.precio,
-      d.categoria,
-      d.imagen_url,
-      d.disponible,
-      r.ciudad
+      d.id, d.restaurante_id, d.nombre, d.descripcion, d.precio, d.categoria,
+      d.imagen_url, d.disponible,
+      d.tiene_descuento, d.porcentaje_descuento, d.acepta_domicilio, d.acepta_reserva,
+      r.ciudad, r.nombre AS restaurante_nombre
     FROM dishes d
     LEFT JOIN restaurants r ON r.id = d.restaurante_id
     ORDER BY d.id DESC
   `;
 
-  const pgSql = `
-    SELECT
-      d.id,
-      d.restaurante_id,
-      d.nombre,
-      d.descripcion,
-      d.precio,
-      d.categoria,
-      d.imagen_url,
-      d.disponible,
-      r.ciudad
-    FROM dishes d
-    LEFT JOIN restaurants r ON r.id = d.restaurante_id
-    ORDER BY d.id DESC
-  `;
-
-  dbAll(sqliteSql, pgSql, [], (err, rows) => {
+  dbAll(sql, sql, [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
   });
@@ -96,7 +75,7 @@ router.get("/search", (req, res) => {
   });
 });
 
-// ✅ GET /dishes/:id (detalle)
+// GET /dishes/:id (detalle)
 router.get("/:id", (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) {
@@ -105,34 +84,30 @@ router.get("/:id", (req, res) => {
 
   const sqliteSql = `
     SELECT
-      d.id,
-      d.restaurante_id,
-      d.nombre,
-      d.descripcion,
-      d.precio,
-      d.categoria,
-      d.imagen_url,
-      d.disponible,
-      r.ciudad
+      d.id, d.restaurante_id, d.nombre, d.descripcion, d.precio, d.categoria,
+      d.imagen_url, d.disponible,
+      d.tiene_descuento, d.porcentaje_descuento, d.acepta_domicilio, d.acepta_reserva,
+      r.nombre AS restaurante_nombre, r.ciudad, r.direccion, r.whatsapp,
+      r.latitud, r.longitud,
+      p.email AS restaurante_email
     FROM dishes d
     LEFT JOIN restaurants r ON r.id = d.restaurante_id
+    LEFT JOIN partners p ON p.id = r.partner_id
     WHERE d.id = ?
     LIMIT 1
   `;
 
   const pgSql = `
     SELECT
-      d.id,
-      d.restaurante_id,
-      d.nombre,
-      d.descripcion,
-      d.precio,
-      d.categoria,
-      d.imagen_url,
-      d.disponible,
-      r.ciudad
+      d.id, d.restaurante_id, d.nombre, d.descripcion, d.precio, d.categoria,
+      d.imagen_url, d.disponible,
+      d.tiene_descuento, d.porcentaje_descuento, d.acepta_domicilio, d.acepta_reserva,
+      r.nombre AS restaurante_nombre, r.ciudad, r.direccion, r.whatsapp,
+      r.latitud, r.longitud,
+      p.email AS restaurante_email
     FROM dishes d
     LEFT JOIN restaurants r ON r.id = d.restaurante_id
+    LEFT JOIN partners p ON p.id = r.partner_id
     WHERE d.id = $1
     LIMIT 1
   `;

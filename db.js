@@ -90,6 +90,10 @@ if (DATABASE_URL) {
         await pool.query(col).catch(() => {});
       }
 
+      // Migración: latitud/longitud en restaurants
+      await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS latitud REAL;`).catch(() => {});
+      await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS longitud REAL;`).catch(() => {});
+
       // Migración: añade partner_id si restaurants ya existía sin esa columna
       await pool.query(`
         DO $$ BEGIN
@@ -285,8 +289,10 @@ async function sqliteMigrateAndSeed() {
       )
     `);
 
-    // Migración: añade partner_id si la tabla ya existía sin esa columna
+    // Migración: añade partner_id y coordenadas si ya existían sin esas columnas
     await run(`ALTER TABLE restaurants ADD COLUMN partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL`).catch(() => {});
+    await run(`ALTER TABLE restaurants ADD COLUMN latitud REAL`).catch(() => {});
+    await run(`ALTER TABLE restaurants ADD COLUMN longitud REAL`).catch(() => {});
 
     await run(`
       CREATE TABLE IF NOT EXISTS dishes (
