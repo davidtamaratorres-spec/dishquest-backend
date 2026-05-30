@@ -31,6 +31,26 @@ function dbRun(sqliteSql, pgSql, params, cb) {
   db.run(isPostgres ? pgSql : sqliteSql, params, cb);
 }
 
+function isoDateKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function emptyMetrics() {
+  return { vistas: 0, domicilios: 0, reservas: 0, qr_usados: 0 };
+}
+
+function addEventToMetrics(metrics, tipo) {
+  if (tipo === "vista") metrics.vistas += 1;
+  if (tipo === "domicilio") metrics.domicilios += 1;
+  if (tipo === "reserva") metrics.reservas += 1;
+  if (tipo === "qr_usado") metrics.qr_usados += 1;
+}
+
+function conversionRate(domicilios, vistas) {
+  if (!vistas) return 0;
+  return Math.round((domicilios / vistas) * 100);
+}
+
 function parseClaudeDishes(data) {
   const text = (data.content || [])
     .filter((part) => part.type === "text")
@@ -134,6 +154,124 @@ router.get("/me", auth, (req, res) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!row) return res.status(404).json({ error: "Restaurante no encontrado" });
       res.json(row);
+    }
+  );
+});
+
+// GET /partner/analytics
+router.get("/analytics", auth, (req, res) => {
+  dbAll(
+    "SELECT id, nombre FROM dishes WHERE restaurante_id = ? ORDER BY id DESC",
+    "SELECT id, nombre FROM dishes WHERE restaurante_id = $1 ORDER BY id DESC",
+    [req.partner.restaurante_id],
+    (dishErr, dishes) => {
+      if (dishErr) return res.status(500).json({ error: dishErr.message });
+
+      dbAll(
+        `SELECT plato_id, restaurante_id, tipo_evento, timestamp, created_at
+         FROM eventos
+         WHERE restaurante_id = ?`,
+        `SELECT plato_id, restaurante_id, tipo_evento, timestamp, created_at
+         FROM eventos
+         WHERE restaurante_id = $1`,
+        [req.partner.restaurante_id],
+        (eventErr, events) => {
+          if (eventErr) return res.status(500).json({ error: eventErr.message });
+
+          const now = new Date();
+          const last7Start = new Date(now);
+          last7Start.setDate(now.getDate() - 6);
+          last7Start.setHours(0, 0, 0, 0);
+          const last30Start = new Date(now);
+          last30Start.setDate(now.getDate() - 29);
+          last30Start.setHours(0, 0, 0, 0);
+
+          const daily30Map = new Map();
+          for (let i = 29; i >= 0; i -= 1) {
+            const d = new Date(now);
+            d.setDate(now.getDate() - i);
+            const fecha = isoDateKey(d);
+            daily30Map.set(fecha, { fecha, vistas: 0, domicilios: 0, reservas: 0, qr_usados: 0 });
+          }
+
+          const byDish = new Map((dishes || []).map((dish) => [
+            Number(dish.id),
+            {
+              id: Number(dish.id),
+              nombre: dish.nombre,
+              vistas: 0,
+              domicilios: 0,
+              reservas: 0,
+              qr_usados: 0,
+              tasa_conversion: 0,
+              tendencia_ultimos_7_dias: 0,
+              dias_ultimos_7: [],
+            },
+          ]));
+          const daily7ByDish = new Map();
+          const resumen = emptyMetrics();
+
+          for (const event of events || []) {
+            const tipo = event.tipo_evento;
+            const platoId = Number(event.plato_id);
+            const date = new Date(event.timestamp || event.created_at || now);
+            const dishMetrics = byDish.get(platoId);
+
+            addEventToMetrics(resumen, tipo);
+            if (dishMetrics) addEventToMetrics(dishMetrics, tipo);
+
+            if (!Number.isNaN(date.getTime()) && date >= last30Start) {
+              const day = daily30Map.get(isoDateKey(date));
+              if (day) addEventToMetrics(day, tipo);
+            }
+
+            if (tipo === "vista" && dishMetrics && !Number.isNaN(date.getTime()) && date >= last7Start) {
+              dishMetrics.tendencia_ultimos_7_dias += 1;
+              const dishDaily = daily7ByDish.get(platoId) || new Map();
+              const dayKey = isoDateKey(date);
+              dishDaily.set(dayKey, (dishDaily.get(dayKey) || 0) + 1);
+              daily7ByDish.set(platoId, dishDaily);
+            }
+          }
+
+          const platos = Array.from(byDish.values()).map((dish) => {
+            const days = [];
+            const dishDaily = daily7ByDish.get(dish.id) || new Map();
+            for (let i = 6; i >= 0; i -= 1) {
+              const d = new Date(now);
+              d.setDate(now.getDate() - i);
+              const fecha = isoDateKey(d);
+              days.push({ fecha, vistas: dishDaily.get(fecha) || 0 });
+            }
+            return {
+              ...dish,
+              tasa_conversion: conversionRate(dish.domicilios, dish.vistas),
+              dias_ultimos_7: days,
+            };
+          }).sort((a, b) => b.vistas - a.vistas || b.domicilios - a.domicilios);
+
+          const platoMasVisto = platos.reduce((best, dish) =>
+            !best || dish.vistas > best.vistas ? dish : best, null);
+          const platoMasPedidos = platos.reduce((best, dish) =>
+            !best || dish.domicilios > best.domicilios ? dish : best, null);
+          const platoMejorConversion = platos.reduce((best, dish) => {
+            if (!dish.vistas) return best;
+            if (!best) return dish;
+            return dish.tasa_conversion > best.tasa_conversion ? dish : best;
+          }, null);
+
+          res.json({
+            resumen,
+            platos,
+            destacados: {
+              plato_mas_visto: platoMasVisto,
+              plato_mas_pedidos: platoMasPedidos,
+              plato_mejor_conversion: platoMejorConversion,
+            },
+            datos_por_dia_30: Array.from(daily30Map.values()),
+          });
+        }
+      );
     }
   );
 });
