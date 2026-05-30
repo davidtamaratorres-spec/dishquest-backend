@@ -92,6 +92,19 @@ if (DATABASE_URL) {
         );
       `);
 
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS qr_codigos (
+          id SERIAL PRIMARY KEY,
+          token TEXT NOT NULL UNIQUE,
+          plato_id INTEGER NOT NULL REFERENCES dishes(id) ON DELETE CASCADE,
+          restaurante_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+          porcentaje_descuento INTEGER DEFAULT 0,
+          fecha_expiracion TIMESTAMP NOT NULL,
+          usado_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+
       // Migración: nuevos campos en dishes
       for (const col of [
         "ALTER TABLE dishes ADD COLUMN IF NOT EXISTS tiene_descuento INTEGER DEFAULT 0",
@@ -371,6 +384,21 @@ async function sqliteMigrateAndSeed() {
 
     await run(`ALTER TABLE eventos ADD COLUMN timestamp DATETIME`).catch(() => {});
     await run(`UPDATE eventos SET timestamp = created_at WHERE timestamp IS NULL`).catch(() => {});
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS qr_codigos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token TEXT NOT NULL UNIQUE,
+        plato_id INTEGER NOT NULL,
+        restaurante_id INTEGER NOT NULL,
+        porcentaje_descuento INTEGER DEFAULT 0,
+        fecha_expiracion DATETIME NOT NULL,
+        usado_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (plato_id) REFERENCES dishes(id) ON DELETE CASCADE,
+        FOREIGN KEY (restaurante_id) REFERENCES restaurants(id) ON DELETE CASCADE
+      )
+    `);
 
     const r = await get("SELECT COUNT(*) AS c FROM restaurants;");
     const count = Number(r?.c || 0);

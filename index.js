@@ -9,7 +9,7 @@ const initColombia = require("./colombiaInit");
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "12mb" }));
 
 // =========================
 // ✅ DishQuest routes (OJO: en este repo la carpeta es "routes")
@@ -17,6 +17,7 @@ app.use(express.json());
 app.use("/auth", require("./routes/auth"));
 app.use("/partner", require("./routes/partner"));
 app.use("/eventos", require("./routes/eventos"));
+app.use("/qr", require("./routes/qr"));
 app.use("/restaurants", require("./routes/restaurants"));
 app.use("/dishes", require("./routes/dishes"));
 app.use("/promotions", require("./routes/promotions"));

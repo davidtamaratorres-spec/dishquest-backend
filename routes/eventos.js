@@ -12,7 +12,7 @@ router.post("/", (req, res) => {
     return res.status(400).json({ error: "tipo_evento requerido" });
   }
 
-  const tipos = ["vista", "domicilio", "reserva", "descuento", "mapa"];
+  const tipos = ["vista", "domicilio", "reserva", "descuento", "mapa", "qr_usado"];
   if (!tipos.includes(tipo_evento)) {
     return res.status(400).json({ error: `tipo_evento inválido. Valores: ${tipos.join(", ")}` });
   }
@@ -52,13 +52,14 @@ router.get("/restaurante/:id", (req, res) => {
   db.all(sql, [id], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
 
-    const result = { vistas: 0, domicilios: 0, reservas: 0, mapas: 0, descuentos: 0 };
+    const result = { vistas: 0, domicilios: 0, reservas: 0, mapas: 0, descuentos: 0, qr_usados: 0 };
     for (const row of rows || []) {
       if (row.tipo_evento === "vista") result.vistas = Number(row.total);
       if (row.tipo_evento === "domicilio") result.domicilios = Number(row.total);
       if (row.tipo_evento === "reserva") result.reservas = Number(row.total);
       if (row.tipo_evento === "mapa") result.mapas = Number(row.total);
       if (row.tipo_evento === "descuento") result.descuentos = Number(row.total);
+      if (row.tipo_evento === "qr_usado") result.qr_usados = Number(row.total);
     }
     res.json(result);
   });

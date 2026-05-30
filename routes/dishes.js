@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
+const { addHours, buildQrImageUrl, createToken } = require("./qrUtils");
 
 const isPostgres = !!db._pool; // en tu wrapper pg exportas _pool
 
@@ -73,6 +74,59 @@ router.get("/search", (req, res) => {
 
     res.json(rows);
   });
+});
+
+// GET /dishes/:id/qr (QR publico para clientes)
+router.get("/:id/qr", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: "id invalido" });
+  }
+
+  dbGet(
+    `SELECT id, restaurante_id, tiene_descuento, porcentaje_descuento
+     FROM dishes
+     WHERE id = ? AND disponible = 1
+     LIMIT 1`,
+    `SELECT id, restaurante_id, tiene_descuento, porcentaje_descuento
+     FROM dishes
+     WHERE id = $1 AND disponible = 1
+     LIMIT 1`,
+    [id],
+    (err, dish) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!dish) return res.status(404).json({ error: "Plato no encontrado" });
+
+      const porcentaje = Number(dish.porcentaje_descuento) || 0;
+      if (!dish.tiene_descuento || porcentaje <= 0) {
+        return res.status(400).json({ error: "Este plato no tiene descuento QR activo" });
+      }
+
+      const token = createToken();
+      const expiresAt = addHours(new Date(), 24).toISOString();
+      dbRun(
+        `INSERT INTO qr_codigos (token, plato_id, restaurante_id, porcentaje_descuento, fecha_expiracion)
+         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO qr_codigos (token, plato_id, restaurante_id, porcentaje_descuento, fecha_expiracion)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [token, dish.id, dish.restaurante_id, porcentaje, expiresAt],
+        function (insertErr, result) {
+          if (insertErr) return res.status(500).json({ error: insertErr.message });
+          const qrId = isPostgres ? result?.rows?.[0]?.id : this.lastID;
+          res.json({
+            ok: true,
+            id: qrId ?? null,
+            token,
+            plato_id: dish.id,
+            restaurante_id: dish.restaurante_id,
+            porcentaje_descuento: porcentaje,
+            fecha_expiracion: expiresAt,
+            qr_image_url: buildQrImageUrl(token),
+          });
+        }
+      );
+    }
+  );
 });
 
 // GET /dishes/:id (detalle)
