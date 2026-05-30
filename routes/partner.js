@@ -31,53 +31,7 @@ function dbRun(sqliteSql, pgSql, params, cb) {
   db.run(isPostgres ? pgSql : sqliteSql, params, cb);
 }
 
-async function callClaudeMenuVision({ imageBase64, mediaType }) {
-  const apiKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error("CLAUDE_API_KEY no configurada");
-  }
-
-  const prompt = [
-    "Extrae los platos visibles de este menu.",
-    "Devuelve SOLO JSON valido con esta forma:",
-    '{"platos":[{"nombre":"string","precio":12000,"ingredientes":["string"],"descripcion":"string","categoria":"string"}]}',
-    "Si un precio no se ve claro usa 0. No inventes platos que no esten en la imagen.",
-  ].join("\n");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 3000,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mediaType || "image/jpeg",
-                data: imageBase64,
-              },
-            },
-            { type: "text", text: prompt },
-          ],
-        },
-      ],
-    }),
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `Claude HTTP ${response.status}`);
-  }
-
+function parseClaudeDishes(data) {
   const text = (data.content || [])
     .filter((part) => part.type === "text")
     .map((part) => part.text)
@@ -98,6 +52,76 @@ async function callClaudeMenuVision({ imageBase64, mediaType }) {
     descripcion: String(plato.descripcion || "").trim(),
     categoria: String(plato.categoria || "Menu").trim() || "Menu",
   })).filter((plato) => plato.nombre);
+}
+
+async function fetchMenuTextFromUrl(menuUrl) {
+  const response = await fetch(menuUrl);
+  if (!response.ok) throw new Error(`No se pudo leer la URL del menu: HTTP ${response.status}`);
+  const html = await response.text();
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 20000);
+}
+
+async function callClaudeMenuExtraction({ imageBase64, mediaType, menuText, menuUrl, imageNotes }) {
+  const apiKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("CLAUDE_API_KEY no configurada");
+  }
+
+  const sourceText = menuUrl ? await fetchMenuTextFromUrl(menuUrl) : menuText;
+  const prompt = [
+    "Extrae los platos, precios e ingredientes de este menu.",
+    "Devuelve SOLO JSON valido con esta forma:",
+    '{"platos":[{"nombre":"string","precio":12000,"ingredientes":["string"],"descripcion":"string","categoria":"string"}]}',
+    "Si un precio no se ve claro usa 0. No inventes platos que no esten en la imagen.",
+    imageNotes ? `Notas de preparacion de imagen: ${imageNotes}` : "",
+  ].join("\n");
+
+  const content = [];
+  if (imageBase64) {
+    content.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: mediaType || "image/jpeg",
+        data: imageBase64,
+      },
+    });
+  }
+  content.push({
+    type: "text",
+    text: sourceText ? `${prompt}\n\nMENU:\n${sourceText}` : prompt,
+  });
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 3000,
+      messages: [
+        {
+          role: "user",
+          content,
+        },
+      ],
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `Claude HTTP ${response.status}`);
+  }
+  return parseClaudeDishes(data);
 }
 
 // GET /partner/me
@@ -191,15 +215,18 @@ router.get("/platos/:id/qr", auth, (req, res) => {
 
 // POST /partner/menu-ia
 router.post("/menu-ia", auth, async (req, res) => {
-  const { image_base64, media_type } = req.body || {};
-  if (!image_base64) {
-    return res.status(400).json({ error: "image_base64 requerido" });
+  const { image_base64, media_type, menu_text, menu_url, image_notes } = req.body || {};
+  if (!image_base64 && !menu_text && !menu_url) {
+    return res.status(400).json({ error: "image_base64, menu_text o menu_url requerido" });
   }
 
   try {
-    const platos = await callClaudeMenuVision({
+    const platos = await callClaudeMenuExtraction({
       imageBase64: image_base64,
       mediaType: media_type || "image/jpeg",
+      menuText: menu_text,
+      menuUrl: menu_url,
+      imageNotes: image_notes,
     });
     res.json({ ok: true, platos });
   } catch (err) {
