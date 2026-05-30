@@ -54,7 +54,11 @@ if (DATABASE_URL) {
           precio NUMERIC NOT NULL,
           categoria TEXT,
           imagen_url TEXT,
-          disponible INTEGER DEFAULT 1
+          disponible INTEGER DEFAULT 1,
+          tiene_descuento INTEGER DEFAULT 0,
+          porcentaje_descuento INTEGER DEFAULT 0,
+          acepta_domicilio INTEGER DEFAULT 0,
+          acepta_reserva INTEGER DEFAULT 0
         );
       `);
 
@@ -75,6 +79,16 @@ if (DATABASE_URL) {
           fecha TIMESTAMP DEFAULT NOW()
         );
       `);
+
+      // Migración: nuevos campos en dishes
+      for (const col of [
+        "ALTER TABLE dishes ADD COLUMN IF NOT EXISTS tiene_descuento INTEGER DEFAULT 0",
+        "ALTER TABLE dishes ADD COLUMN IF NOT EXISTS porcentaje_descuento INTEGER DEFAULT 0",
+        "ALTER TABLE dishes ADD COLUMN IF NOT EXISTS acepta_domicilio INTEGER DEFAULT 0",
+        "ALTER TABLE dishes ADD COLUMN IF NOT EXISTS acepta_reserva INTEGER DEFAULT 0",
+      ]) {
+        await pool.query(col).catch(() => {});
+      }
 
       // Migración: añade partner_id si restaurants ya existía sin esa columna
       await pool.query(`
@@ -284,9 +298,23 @@ async function sqliteMigrateAndSeed() {
         categoria TEXT,
         imagen_url TEXT,
         disponible INTEGER DEFAULT 1,
+        tiene_descuento INTEGER DEFAULT 0,
+        porcentaje_descuento INTEGER DEFAULT 0,
+        acepta_domicilio INTEGER DEFAULT 0,
+        acepta_reserva INTEGER DEFAULT 0,
         FOREIGN KEY (restaurante_id) REFERENCES restaurants(id) ON DELETE CASCADE
       )
     `);
+
+    // Migración: nuevos campos en dishes para BD SQLite existente
+    for (const col of [
+      "ALTER TABLE dishes ADD COLUMN tiene_descuento INTEGER DEFAULT 0",
+      "ALTER TABLE dishes ADD COLUMN porcentaje_descuento INTEGER DEFAULT 0",
+      "ALTER TABLE dishes ADD COLUMN acepta_domicilio INTEGER DEFAULT 0",
+      "ALTER TABLE dishes ADD COLUMN acepta_reserva INTEGER DEFAULT 0",
+    ]) {
+      await run(col).catch(() => {});
+    }
 
     await run(`
       CREATE TABLE IF NOT EXISTS promotions (

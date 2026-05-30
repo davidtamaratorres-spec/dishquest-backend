@@ -84,6 +84,10 @@ router.post("/platos", auth, (req, res) => {
     categoria = "",
     imagen_url = "",
     disponible = 1,
+    tiene_descuento = 0,
+    porcentaje_descuento = 0,
+    acepta_domicilio = 0,
+    acepta_reserva = 0,
   } = req.body || {};
 
   if (!nombre || precio === undefined || precio === null) {
@@ -96,11 +100,18 @@ router.post("/platos", auth, (req, res) => {
   }
 
   dbRun(
-    `INSERT INTO dishes (restaurante_id, nombre, descripcion, precio, categoria, imagen_url, disponible)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    `INSERT INTO dishes (restaurante_id, nombre, descripcion, precio, categoria, imagen_url, disponible)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-    [req.partner.restaurante_id, nombre, descripcion, precioNum, categoria, imagen_url, disponible ? 1 : 0],
+    `INSERT INTO dishes (restaurante_id, nombre, descripcion, precio, categoria, imagen_url, disponible, tiene_descuento, porcentaje_descuento, acepta_domicilio, acepta_reserva)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO dishes (restaurante_id, nombre, descripcion, precio, categoria, imagen_url, disponible, tiene_descuento, porcentaje_descuento, acepta_domicilio, acepta_reserva)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+    [
+      req.partner.restaurante_id, nombre, descripcion, precioNum, categoria, imagen_url,
+      disponible ? 1 : 0,
+      tiene_descuento ? 1 : 0,
+      Number(porcentaje_descuento) || 0,
+      acepta_domicilio ? 1 : 0,
+      acepta_reserva ? 1 : 0,
+    ],
     function (err, result) {
       if (err) return res.status(500).json({ error: err.message });
       const newId = isPostgres ? result?.rows?.[0]?.id : this.lastID;
@@ -123,6 +134,10 @@ router.put("/platos/:id", auth, (req, res) => {
     categoria = "",
     imagen_url = "",
     disponible = 1,
+    tiene_descuento = 0,
+    porcentaje_descuento = 0,
+    acepta_domicilio = 0,
+    acepta_reserva = 0,
   } = req.body || {};
 
   if (!nombre || precio === undefined || precio === null) {
@@ -134,7 +149,6 @@ router.put("/platos/:id", auth, (req, res) => {
     return res.status(400).json({ error: "precio inválido" });
   }
 
-  // Verify ownership before updating
   dbGet(
     "SELECT id FROM dishes WHERE id = ? AND restaurante_id = ?",
     "SELECT id FROM dishes WHERE id = $1 AND restaurante_id = $2",
@@ -144,11 +158,20 @@ router.put("/platos/:id", auth, (req, res) => {
       if (!row) return res.status(404).json({ error: "Plato no encontrado o no autorizado" });
 
       dbRun(
-        `UPDATE dishes SET nombre = ?, descripcion = ?, precio = ?, categoria = ?, imagen_url = ?, disponible = ?
+        `UPDATE dishes SET nombre = ?, descripcion = ?, precio = ?, categoria = ?, imagen_url = ?, disponible = ?,
+         tiene_descuento = ?, porcentaje_descuento = ?, acepta_domicilio = ?, acepta_reserva = ?
          WHERE id = ? AND restaurante_id = ?`,
-        `UPDATE dishes SET nombre = $1, descripcion = $2, precio = $3, categoria = $4, imagen_url = $5, disponible = $6
-         WHERE id = $7 AND restaurante_id = $8`,
-        [nombre, descripcion, precioNum, categoria, imagen_url, disponible ? 1 : 0, id, req.partner.restaurante_id],
+        `UPDATE dishes SET nombre = $1, descripcion = $2, precio = $3, categoria = $4, imagen_url = $5, disponible = $6,
+         tiene_descuento = $7, porcentaje_descuento = $8, acepta_domicilio = $9, acepta_reserva = $10
+         WHERE id = $11 AND restaurante_id = $12`,
+        [
+          nombre, descripcion, precioNum, categoria, imagen_url, disponible ? 1 : 0,
+          tiene_descuento ? 1 : 0,
+          Number(porcentaje_descuento) || 0,
+          acepta_domicilio ? 1 : 0,
+          acepta_reserva ? 1 : 0,
+          id, req.partner.restaurante_id,
+        ],
         function (err2) {
           if (err2) return res.status(500).json({ error: err2.message });
           res.json({ ok: true });
