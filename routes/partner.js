@@ -307,6 +307,24 @@ router.get("/platos", auth, (req, res) => {
   );
 });
 
+// GET /partner/platos/:id
+router.get("/platos/:id", auth, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: "id inválido" });
+  }
+  dbGet(
+    "SELECT * FROM dishes WHERE id = ? AND restaurante_id = ?",
+    "SELECT * FROM dishes WHERE id = $1 AND restaurante_id = $2",
+    [id, req.partner.restaurante_id],
+    (err, plato) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!plato) return res.status(404).json({ error: "Plato no encontrado" });
+      res.json(plato);
+    }
+  );
+});
+
 // GET /partner/platos/:id/qr
 router.get("/platos/:id/qr", auth, (req, res) => {
   const id = Number(req.params.id);
