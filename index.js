@@ -21,6 +21,8 @@ app.use("/qr", require("./routes/qr"));
 app.use("/restaurants", require("./routes/restaurants"));
 app.use("/dishes", require("./routes/dishes"));
 app.use("/promotions", require("./routes/promotions"));
+const aiRoutes = require('./routes/ai');
+app.use('/ai', aiRoutes);
 
 // =========================
 // ✅ Colombia init trigger (opcional)
