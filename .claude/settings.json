@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(git -C D:\\\\dishquest-backend add package.json db.js)",
+      "PowerShell(git -C D:\\\\dishquest-backend commit -m \"fix: sqlite3 como optionalDependency para evitar crash en Render/Linux\")",
+      "Bash(curl -s -X POST \"https://dishquest-backend.onrender.com/auth/register\" -H \"Content-Type: application/json\" -d '{\"email\":\"david@test.com\",\"password\":\"123456\",\"nombre_restaurante\":\"El Sabrosin\",\"ciudad\":\"Sincelejo\",\"whatsapp\":\"3153905194\"}')",
+      "PowerShell(git -C D:\\\\dishquest-backend add db.js)",
+      "PowerShell(git -C D:\\\\dishquest-backend commit -m \"fix: ALTER TABLE para agregar partner_id en Postgres existente\")",
+      "Bash(curl -s -X POST \"https://dishquest-backend.onrender.com/auth/register\" -H \"Content-Type: application/json\" -d '{\"email\":\"monitortest99@dishquest.com\",\"password\":\"123456\",\"nombre_restaurante\":\"Test\",\"ciudad\":\"Bogota\",\"whatsapp\":\"3001234567\"}')",
+      "Bash(curl -s -X POST \"https://dishquest-backend.onrender.com/auth/register\" -H \"Content-Type: application/json\" -d '{\"email\":\"nuevo2@dishquest.com\",\"password\":\"123456\",\"nombre_restaurante\":\"El Sabrosin\",\"ciudad\":\"Sincelejo\",\"whatsapp\":\"3153905194\"}')",
+      "PowerShell(git -C \"D:\\\\DishQuest-Mobile\" pull --rebase origin main)"
+    ]
+  }
+}
