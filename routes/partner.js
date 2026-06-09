@@ -1,8 +1,29 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 const db = require("../db");
 const { addHours, buildQrImageUrl, createToken } = require("./qrUtils");
+
+const uploadsDir = path.join(__dirname, "../public/uploads/dishes");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || ".jpg";
+    cb(null, `dish_${Date.now()}${ext}`);
+  },
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, /^image\//.test(file.mimetype));
+  },
+});
 
 const isPostgres = !!db._pool;
 const JWT_SECRET = process.env.JWT_SECRET || "dishquest_secret_dev";
@@ -518,6 +539,92 @@ router.delete("/platos/:id", auth, (req, res) => {
         function (err2) {
           if (err2) return res.status(500).json({ error: err2.message });
           res.json({ ok: true });
+        }
+      );
+    }
+  );
+});
+
+// POST /partner/track-view
+router.post("/track-view", (req, res) => {
+  const { plato_id } = req.body || {};
+  const id = Number(plato_id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: "plato_id inválido" });
+  }
+  dbRun(
+    "INSERT INTO dish_views (plato_id) VALUES (?)",
+    "INSERT INTO dish_views (plato_id) VALUES ($1)",
+    [id],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ ok: true });
+    }
+  );
+});
+
+// GET /partner/analytics/plato/:id
+router.get("/analytics/plato/:id", auth, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: "id inválido" });
+  }
+
+  dbGet(
+    "SELECT id FROM dishes WHERE id = ? AND restaurante_id = ?",
+    "SELECT id FROM dishes WHERE id = $1 AND restaurante_id = $2",
+    [id, req.partner.restaurante_id],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!row) return res.status(404).json({ error: "Plato no encontrado o no autorizado" });
+
+      dbAll(
+        `SELECT DATE(viewed_at) as dia, COUNT(*) as vistas
+         FROM dish_views WHERE plato_id = ?
+           AND viewed_at >= DATE('now', '-30 days')
+         GROUP BY DATE(viewed_at) ORDER BY dia`,
+        `SELECT DATE(viewed_at) as dia, COUNT(*) as vistas
+         FROM dish_views WHERE plato_id = $1
+           AND viewed_at >= NOW() - INTERVAL '30 days'
+         GROUP BY DATE(viewed_at) ORDER BY dia`,
+        [id],
+        (err2, rows) => {
+          if (err2) return res.status(500).json({ error: err2.message });
+          const total = (rows || []).reduce((s, r) => s + Number(r.vistas), 0);
+          res.json({ plato_id: id, total_vistas: total, por_dia: rows || [] });
+        }
+      );
+    }
+  );
+});
+
+// POST /partner/platos/:id/imagen
+router.post("/platos/:id/imagen", auth, upload.single("imagen"), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: "id inválido" });
+  }
+  if (!req.file) {
+    return res.status(400).json({ error: "Se requiere un archivo de imagen" });
+  }
+
+  dbGet(
+    "SELECT id FROM dishes WHERE id = ? AND restaurante_id = ?",
+    "SELECT id FROM dishes WHERE id = $1 AND restaurante_id = $2",
+    [id, req.partner.restaurante_id],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!row) return res.status(404).json({ error: "Plato no encontrado o no autorizado" });
+
+      const imagen_url = `/uploads/dishes/${req.file.filename}`;
+
+      dbRun(
+        "UPDATE dishes SET imagen_url = ? WHERE id = ? AND restaurante_id = ?",
+        "UPDATE dishes SET imagen_url = $1 WHERE id = $2 AND restaurante_id = $3",
+        [imagen_url, id, req.partner.restaurante_id],
+        function (err2) {
+          if (err2) return res.status(500).json({ error: err2.message });
+          res.json({ ok: true, imagen_url });
         }
       );
     }

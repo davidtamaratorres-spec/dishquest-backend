@@ -105,6 +105,14 @@ if (DATABASE_URL) {
         );
       `);
 
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS dish_views (
+          id SERIAL PRIMARY KEY,
+          plato_id INTEGER,
+          viewed_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+
       // Migración: nuevos campos en dishes
       for (const col of [
         "ALTER TABLE dishes ADD COLUMN IF NOT EXISTS tiene_descuento INTEGER DEFAULT 0",
@@ -397,6 +405,14 @@ async function sqliteMigrateAndSeed() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (plato_id) REFERENCES dishes(id) ON DELETE CASCADE,
         FOREIGN KEY (restaurante_id) REFERENCES restaurants(id) ON DELETE CASCADE
+      )
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS dish_views (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plato_id INTEGER,
+        viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
