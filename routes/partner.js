@@ -52,6 +52,21 @@ function dbRun(sqliteSql, pgSql, params, cb) {
   db.run(isPostgres ? pgSql : sqliteSql, params, cb);
 }
 
+async function geocodificar(direccion) {
+  try {
+    const query = encodeURIComponent(direccion + ', Colombia');
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
+      { headers: { 'User-Agent': 'DishQuest/1.0' } }
+    );
+    const data = await r.json();
+    if (data.length > 0) {
+      return { latitud: parseFloat(data[0].lat), longitud: parseFloat(data[0].lon) };
+    }
+  } catch (e) {}
+  return { latitud: null, longitud: null };
+}
+
 function isoDateKey(date) {
   return date.toISOString().slice(0, 10);
 }
@@ -298,21 +313,33 @@ router.get("/analytics", auth, (req, res) => {
 });
 
 // PUT /partner/restaurante
-router.put("/restaurante", auth, (req, res) => {
-  const { nombre, ciudad, direccion, whatsapp } = req.body || {};
-  if (!nombre || !ciudad || !whatsapp) {
-    return res.status(400).json({ error: "nombre, ciudad y whatsapp son obligatorios" });
-  }
-
-  dbRun(
-    "UPDATE restaurants SET nombre = ?, ciudad = ?, direccion = ?, whatsapp = ? WHERE partner_id = ?",
-    "UPDATE restaurants SET nombre = $1, ciudad = $2, direccion = $3, whatsapp = $4 WHERE partner_id = $5",
-    [nombre, ciudad, direccion || "", whatsapp, req.partner.partner_id],
-    function (err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ ok: true });
+router.put("/restaurante", auth, async (req, res) => {
+  try {
+    const { nombre, ciudad, direccion, whatsapp } = req.body || {};
+    if (!nombre || !ciudad || !whatsapp) {
+      return res.status(400).json({ error: "nombre, ciudad y whatsapp son obligatorios" });
     }
-  );
+
+    let latitud = null, longitud = null;
+    if (direccion) {
+      const coords = await geocodificar(direccion);
+      latitud = coords.latitud;
+      longitud = coords.longitud;
+    }
+
+    await new Promise((resolve, reject) => {
+      dbRun(
+        "UPDATE restaurants SET nombre = ?, ciudad = ?, direccion = ?, whatsapp = ?, latitud = ?, longitud = ? WHERE partner_id = ?",
+        "UPDATE restaurants SET nombre = $1, ciudad = $2, direccion = $3, whatsapp = $4, latitud = $5, longitud = $6 WHERE partner_id = $7",
+        [nombre, ciudad, direccion || "", whatsapp, latitud, longitud, req.partner.partner_id],
+        function (err) { if (err) reject(err); else resolve(); }
+      );
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /partner/platos

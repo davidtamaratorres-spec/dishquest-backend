@@ -7,6 +7,21 @@ const db = require("../db");
 const isPostgres = !!db._pool;
 const JWT_SECRET = process.env.JWT_SECRET || "dishquest_secret_dev";
 
+async function geocodificar(direccion) {
+  try {
+    const query = encodeURIComponent(direccion + ', Colombia');
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
+      { headers: { 'User-Agent': 'DishQuest/1.0' } }
+    );
+    const data = await res.json();
+    if (data.length > 0) {
+      return { latitud: parseFloat(data[0].lat), longitud: parseFloat(data[0].lon) };
+    }
+  } catch (e) {}
+  return { latitud: null, longitud: null };
+}
+
 // POST /auth/register
 router.post("/register", async (req, res) => {
   const { email, password, nombre_restaurante, ciudad, direccion, whatsapp } = req.body;
@@ -17,6 +32,7 @@ router.post("/register", async (req, res) => {
 
   try {
     const hash = await bcrypt.hash(password, 10);
+    const { latitud, longitud } = await geocodificar(direccion || '');
 
     let partner;
     if (isPostgres) {
@@ -41,15 +57,15 @@ router.post("/register", async (req, res) => {
     let restaurante;
     if (isPostgres) {
       const r = await db._pool.query(
-        "INSERT INTO restaurants (nombre, ciudad, direccion, whatsapp, partner_id) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-        [nombre_restaurante, ciudad, direccion || "", whatsapp, partner.id]
+        "INSERT INTO restaurants (nombre, ciudad, direccion, whatsapp, partner_id, latitud, longitud) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+        [nombre_restaurante, ciudad, direccion || "", whatsapp, partner.id, latitud, longitud]
       );
       restaurante = r.rows[0];
     } else {
       await new Promise((resolve, reject) => {
         db.run(
-          "INSERT INTO restaurants (nombre, ciudad, direccion, whatsapp, partner_id) VALUES (?, ?, ?, ?, ?)",
-          [nombre_restaurante, ciudad, direccion || "", whatsapp, partner.id],
+          "INSERT INTO restaurants (nombre, ciudad, direccion, whatsapp, partner_id, latitud, longitud) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [nombre_restaurante, ciudad, direccion || "", whatsapp, partner.id, latitud, longitud],
           function (err) {
             if (err) reject(err);
             else { restaurante = { id: this.lastID }; resolve(); }

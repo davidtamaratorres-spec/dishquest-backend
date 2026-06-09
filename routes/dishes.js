@@ -5,6 +5,16 @@ const { addHours, buildQrImageUrl, createToken } = require("./qrUtils");
 
 const isPostgres = !!db._pool; // en tu wrapper pg exportas _pool
 
+function distanciaKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // Helpers para ejecutar queries en ambos motores
 function dbGet(sqliteSql, pgSql, params, cb) {
   const sql = isPostgres ? pgSql : sqliteSql;
@@ -38,28 +48,32 @@ router.get("/", (req, res) => {
   });
 });
 
-// GET /dishes/search?q=
+// GET /dishes/search?q=&lat=&lng=
 router.get("/search", (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.json([]);
 
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  const hasCoords = !isNaN(lat) && !isNaN(lng);
+
   const sqliteSql = `
     SELECT
-      d.id, d.nombre, d.descripcion, d.precio, d.categoria, d.imagen_url, d.disponible,
-      r.nombre AS restaurante_nombre, r.ciudad
+      d.id, d.restaurante_id, d.nombre, d.descripcion, d.precio, d.categoria, d.imagen_url, d.disponible,
+      r.nombre AS restaurante_nombre, r.ciudad, r.latitud, r.longitud
     FROM dishes d
     LEFT JOIN restaurants r ON r.id = d.restaurante_id
     WHERE LOWER(d.nombre) LIKE LOWER(?)
-    ORDER BY d.id DESC
+    ORDER BY d.precio ASC
   `;
   const pgSql = `
     SELECT
-      d.id, d.nombre, d.descripcion, d.precio, d.categoria, d.imagen_url, d.disponible,
-      r.nombre AS restaurante_nombre, r.ciudad
+      d.id, d.restaurante_id, d.nombre, d.descripcion, d.precio, d.categoria, d.imagen_url, d.disponible,
+      r.nombre AS restaurante_nombre, r.ciudad, r.latitud, r.longitud
     FROM dishes d
     LEFT JOIN restaurants r ON r.id = d.restaurante_id
     WHERE d.nombre ILIKE $1
-    ORDER BY d.id DESC
+    ORDER BY d.precio ASC
   `;
 
   dbAll(sqliteSql, pgSql, [`%${q}%`], (err, rows) => {
@@ -70,6 +84,20 @@ router.get("/search", (req, res) => {
       const pgLog = "INSERT INTO unsatisfied_searches (query) VALUES ($1)";
       dbRun(sqliteLog, pgLog, [q], () => {});
       return res.json([]);
+    }
+
+    if (hasCoords) {
+      rows = rows.map(dish => ({
+        ...dish,
+        distancia_km: (dish.latitud != null && dish.longitud != null)
+          ? distanciaKm(lat, lng, dish.latitud, dish.longitud)
+          : null,
+      }));
+      rows.sort((a, b) => {
+        if (a.distancia_km === null) return 1;
+        if (b.distancia_km === null) return -1;
+        return a.distancia_km - b.distancia_km;
+      });
     }
 
     res.json(rows);

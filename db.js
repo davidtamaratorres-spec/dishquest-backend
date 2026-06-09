@@ -28,7 +28,10 @@ if (DATABASE_URL) {
           id SERIAL PRIMARY KEY,
           email TEXT NOT NULL UNIQUE,
           password_hash TEXT NOT NULL,
-          created_at TIMESTAMP DEFAULT NOW()
+          created_at TIMESTAMP DEFAULT NOW(),
+          latitud REAL DEFAULT NULL,
+          longitud REAL DEFAULT NULL,
+          direccion TEXT DEFAULT NULL
         );
       `);
 
@@ -41,7 +44,9 @@ if (DATABASE_URL) {
           direccion TEXT,
           whatsapp TEXT NOT NULL,
           activo INTEGER DEFAULT 1,
-          created_at TIMESTAMP DEFAULT NOW()
+          created_at TIMESTAMP DEFAULT NOW(),
+          latitud REAL DEFAULT NULL,
+          longitud REAL DEFAULT NULL
         );
       `);
 
@@ -126,6 +131,11 @@ if (DATABASE_URL) {
       // Migración: latitud/longitud en restaurants
       await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS latitud REAL;`).catch(() => {});
       await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS longitud REAL;`).catch(() => {});
+
+      // Migración: latitud/longitud/direccion en partners
+      await pool.query(`ALTER TABLE partners ADD COLUMN IF NOT EXISTS latitud REAL DEFAULT NULL;`).catch(() => {});
+      await pool.query(`ALTER TABLE partners ADD COLUMN IF NOT EXISTS longitud REAL DEFAULT NULL;`).catch(() => {});
+      await pool.query(`ALTER TABLE partners ADD COLUMN IF NOT EXISTS direccion TEXT DEFAULT NULL;`).catch(() => {});
 
       // Migración: timestamp explícito en eventos
       await pool.query(`ALTER TABLE eventos ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP;`).catch(() => {});
@@ -309,7 +319,10 @@ async function sqliteMigrateAndSeed() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        latitud REAL DEFAULT NULL,
+        longitud REAL DEFAULT NULL,
+        direccion TEXT DEFAULT NULL
       )
     `);
 
@@ -322,7 +335,9 @@ async function sqliteMigrateAndSeed() {
         direccion TEXT,
         whatsapp TEXT NOT NULL,
         activo INTEGER DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        latitud REAL DEFAULT NULL,
+        longitud REAL DEFAULT NULL
       )
     `);
 
@@ -330,6 +345,11 @@ async function sqliteMigrateAndSeed() {
     await run(`ALTER TABLE restaurants ADD COLUMN partner_id INTEGER REFERENCES partners(id) ON DELETE SET NULL`).catch(() => {});
     await run(`ALTER TABLE restaurants ADD COLUMN latitud REAL`).catch(() => {});
     await run(`ALTER TABLE restaurants ADD COLUMN longitud REAL`).catch(() => {});
+
+    // Migración: latitud/longitud/direccion en partners
+    await run(`ALTER TABLE partners ADD COLUMN latitud REAL DEFAULT NULL`).catch(() => {});
+    await run(`ALTER TABLE partners ADD COLUMN longitud REAL DEFAULT NULL`).catch(() => {});
+    await run(`ALTER TABLE partners ADD COLUMN direccion TEXT DEFAULT NULL`).catch(() => {});
 
     await run(`
       CREATE TABLE IF NOT EXISTS dishes (
